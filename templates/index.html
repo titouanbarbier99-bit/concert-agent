@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Concert Agent — LEET</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="glow glow-a"></div>
+  <div class="glow glow-b"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">♪</div>
+      <div>
+        <div class="brand-name">LEET <span>CONCERTS</span></div>
+        <div class="brand-sub">Agent de concerts — Flask · SQLite · LLM</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="badges">
+        <span id="spotify-status" class="badge">Spotify : …</span>
+        <span id="llm-status" class="badge">LLM : …</span>
+        <span id="data-status" class="badge">Données : …</span>
+      </div>
+      <div id="spotify-zone" class="spotify-zone">
+        <a id="spotify-login" class="btn btn-spotify" href="/login">Se connecter avec Spotify</a>
+        <div id="spotify-profile" class="spotify-profile hidden">
+          <img id="spotify-avatar" class="spotify-avatar" alt="Photo de profil Spotify">
+          <div class="spotify-meta">
+            <b id="spotify-name">Compte Spotify</b>
+            <span>Connecté</span>
+          </div>
+          <button id="spotify-import" class="btn btn-ghost btn-small" type="button">Importer mes artistes</button>
+          <a class="spotify-logout" href="/logout">Déconnexion</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar">
+      <section class="card">
+        <h2>Préférences</h2>
+        <form id="prefs-form" class="stack">
+          <label>Ville
+            <input id="pref-ville" type="text" placeholder="Lyon" autocomplete="off">
+          </label>
+          <label>Région
+            <select id="pref-region">
+              <option value="">Toute la France</option>
+              <option value="ARA">Auvergne-Rhône-Alpes</option>
+              <option value="IDF">Île-de-France</option>
+              <option value="PAC">Provence-Alpes-Côte d'Azur</option>
+              <option value="OCC">Occitanie</option>
+              <option value="NAQ">Nouvelle-Aquitaine</option>
+              <option value="HDF">Hauts-de-France</option>
+              <option value="GES">Grand Est</option>
+              <option value="PDL">Pays de la Loire</option>
+              <option value="BRE">Bretagne</option>
+              <option value="NOR">Normandie</option>
+              <option value="BFC">Bourgogne-Franche-Comté</option>
+              <option value="CVL">Centre-Val de Loire</option>
+              <option value="COR">Corse</option>
+            </select>
+          </label>
+          <label>Budget max (€)
+            <input id="pref-budget" type="number" min="0" step="1" placeholder="60">
+          </label>
+          <button type="submit" class="btn btn-primary">Enregistrer</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Artistes suivis</h2>
+        <div id="artists-list" class="chip-list"></div>
+        <form id="artist-form" class="inline">
+          <input id="artist-input" type="text" placeholder="Ajouter un artiste" autocomplete="off">
+          <button type="submit" class="btn btn-ghost">+</button>
+        </form>
+        <p id="spotify-hint" class="muted spotify-hint">Connecte Spotify pour importer tes artistes.</p>
+      </section>
+
+      <section class="card">
+        <h2>Favoris</h2>
+        <div id="favs-list" class="fav-list">
+          <p class="muted">Aucun favori pour l'instant.</p>
+        </div>
+      </section>
+    </aside>
+
+    <section class="chat-card">
+      <div class="chat-head">
+        <div>
+          <h1>Ton agent de concerts</h1>
+          <p>Écris en français libre : l'agent choisit les tools, interroge Ticketmaster et lit/écrit dans SQLite.</p>
+        </div>
+        <button id="clear-chat" class="btn btn-ghost" type="button" title="Recharger la conversation">↻</button>
+      </div>
+
+      <div id="messages" class="messages" aria-live="polite">
+        <div class="msg agent">
+          <div class="bubble">
+            <b>Bonjour 👋</b><br>
+            Je peux chercher des concerts de tes artistes suivis, filtrer par ville, région, date ou budget,
+            et enregistrer un concert en favori — avec ta confirmation avant chaque écriture.
+            <div class="examples">
+              <button class="example" type="button">Trouve un concert de mes artistes préférés en Auvergne-Rhône-Alpes le mois prochain.</button>
+              <button class="example" type="button">Je veux voir un concert à Paris demain, max 40 €.</button>
+              <button class="example" type="button">Ajoute le concert de Gims à Lyon à mes favoris.</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="confirmation" class="confirmation hidden">
+        <div class="confirmation-text"></div>
+        <div class="confirmation-actions">
+          <button id="confirm-yes" class="btn btn-primary" type="button">Oui, confirmer</button>
+          <button id="confirm-no" class="btn btn-ghost" type="button">Non, annuler</button>
+        </div>
+      </div>
+
+      <form id="chat-form" class="chat-form">
+        <input id="chat-input" type="text" placeholder="Ex. : Trouve un concert de Gims à Lyon le mois prochain, max 50 €" autocomplete="off">
+        <button id="send-btn" class="btn btn-primary" type="submit">Envoyer</button>
+      </form>
+      <p class="footnote">Les données de démonstration sont toujours signalées dans les réponses. L'agent n'invente jamais de concert.</p>
+    </section>
+  </main>
+
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

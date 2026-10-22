@@ -117,6 +117,7 @@
    > ✅ C'est fait : « Gims — ... à Décines » a été ajouté à tes favoris (n° 1).
 
 8. Le favori apparaît dans la colonne « Favoris ».
+9. Cliquer sur le favori : la fiche affiche l'artiste, la date, l'heure, la salle, la ville, la région, le pays, le prix, la source, la date d'ajout et le lien de billetterie lorsqu'il existe.
 
 ### Variante à montrer
 

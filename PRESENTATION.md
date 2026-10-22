@@ -164,7 +164,9 @@ Tables principales :
 
 Chaque appel de tool laisse une trace : nom, arguments, résultat, statut, durée.
 
-> Notes : montrer `/api/historique` ou le panneau « Traces » dans le chat.
+Chaque favori est cliquable : sa fiche réunit date, heure, salle, ville, prix, source et lien de billetterie.
+
+> Notes : montrer `/api/historique` ou le panneau « Traces » dans le chat, puis ouvrir la fiche d'un favori.
 
 ---
 

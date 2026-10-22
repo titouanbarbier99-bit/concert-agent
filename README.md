@@ -10,7 +10,7 @@ Le projet reprend le thème « concerts » du site LEET et fusionne l'ancien sit
 - 4 tools de lecture et 2 tools d'écriture.
 - Confirmation obligatoire avant `ajouter_favori` et `ajouter_artiste_suivi`.
 - Historique des interactions et traces de chaque tool dans SQLite.
-- Interface web : chat, préférences, artistes suivis, favoris, traces.
+- Interface web : chat, préférences, artistes suivis, favoris cliquables avec fiche détaillée, traces.
 - Moteur de règles de secours si aucune clé LLM n'est configurée.
 - Données de démonstration dynamiques, toujours étiquetées `source=demo`.
 - Connexion Spotify (OAuth) et import des top artistes / écoutes récentes dans les artistes suivis.

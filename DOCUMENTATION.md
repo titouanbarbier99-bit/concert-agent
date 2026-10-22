@@ -177,6 +177,10 @@ Le refresh token est conservé quand Spotify n'en renvoie pas lors d'un rafraîc
 | `POST` | `/api/spotify/import` | Importe les artistes Spotify (`{limit:30}`). |
 | `GET` | `/api/spotify/top-artists` | Top artistes Spotify de l'utilisateur. |
 
+### Fiche détail d'un favori
+
+Dans la colonne « Favoris », chaque concert est cliquable. La fiche affiche l'artiste, la date, l'heure, la salle, la ville, la région, le pays, le prix, la source, la date d'ajout et le lien de billetterie lorsqu'il existe. Elle est alimentée par `GET /api/favoris` et ne modifie pas la base.
+
 Réponse type de `/api/chat` :
 
 ```json

@@ -130,6 +130,31 @@
     </section>
   </main>
 
+  <div id="fav-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="fav-modal-title">
+    <div class="modal-backdrop" data-close-fav></div>
+    <div class="modal-card">
+      <button id="fav-modal-close" class="modal-close" type="button" aria-label="Fermer">×</button>
+      <p class="modal-kicker">Concert en favori</p>
+      <h2 id="fav-modal-title">Concert</h2>
+      <p id="fav-modal-subtitle" class="modal-subtitle"></p>
+      <dl class="fav-details">
+        <div class="fav-row" data-fav-row="date"><dt>Date</dt><dd id="fav-modal-date"></dd></div>
+        <div class="fav-row" data-fav-row="heure"><dt>Heure</dt><dd id="fav-modal-heure"></dd></div>
+        <div class="fav-row" data-fav-row="salle"><dt>Salle</dt><dd id="fav-modal-salle"></dd></div>
+        <div class="fav-row" data-fav-row="ville"><dt>Ville</dt><dd id="fav-modal-ville"></dd></div>
+        <div class="fav-row" data-fav-row="region"><dt>Région</dt><dd id="fav-modal-region"></dd></div>
+        <div class="fav-row" data-fav-row="pays"><dt>Pays</dt><dd id="fav-modal-pays"></dd></div>
+        <div class="fav-row" data-fav-row="prix"><dt>Prix</dt><dd id="fav-modal-prix"></dd></div>
+        <div class="fav-row" data-fav-row="source"><dt>Source</dt><dd id="fav-modal-source"></dd></div>
+        <div class="fav-row" data-fav-row="ajoute"><dt>Ajouté le</dt><dd id="fav-modal-ajoute"></dd></div>
+      </dl>
+      <div class="modal-actions">
+        <a id="fav-modal-link" class="btn btn-primary hidden" href="#" target="_blank" rel="noopener">Ouvrir la billetterie</a>
+        <button id="fav-modal-remove" class="btn btn-ghost" type="button">Retirer des favoris</button>
+      </div>
+    </div>
+  </div>
+
   <div id="toast-container" class="toast-container"></div>
 
   <script src="{{ url_for('static', filename='app.js') }}"></script>

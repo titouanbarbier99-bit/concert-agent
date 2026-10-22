@@ -1,27 +1,126 @@
 # Concert Agent — LEET
 
-Application **Python / Flask** avec un **agent LLM** qui choisit lui-même ses tools, lit et écrit dans **SQLite**, et demande **confirmation avant toute écriture**.
+**Un assistant qui trouve de vrais concerts, explique d'où viennent les informations et demande la permission avant d'enregistrer un favori.**
 
-Le projet reprend le thème « concerts » du site LEET et fusionne l'ancien site Spotify : l'utilisateur peut se connecter avec Spotify et importer ses artistes dans l'agent. Les données de concerts ne sont jamais inventées par le modèle : elles viennent de Ticketmaster ou de données de démonstration clairement signalées.
+Concert Agent est une application **Python / Flask**. L'utilisateur écrit en français ; un **agent LLM** choisit les outils adaptés, Python les exécute, puis l'agent répond avec les résultats réels. Les concerts viennent de **Ticketmaster** ou, à défaut, d'un jeu de démonstration clairement signalé.
 
-## Fonctionnalités
+> **Démo en ligne :** <https://concert-agent.onrender.com>
+>
+> Le service gratuit peut mettre environ une minute à se réveiller. Sa base SQLite est remise à zéro à chaque redémarrage.
 
-- Agent avec tools réellement exécutés côté Python.
-- 4 tools de lecture et 2 tools d'écriture.
-- Confirmation obligatoire avant `ajouter_favori` et `ajouter_artiste_suivi`.
-- Historique des interactions et traces de chaque tool dans SQLite.
-- Interface web : chat, préférences, artistes suivis, favoris cliquables avec fiche détaillée, traces.
-- Moteur de règles de secours si aucune clé LLM n'est configurée.
-- Données de démonstration dynamiques, toujours étiquetées `source=demo`.
-- Connexion Spotify (OAuth) et import des top artistes / écoutes récentes dans les artistes suivis.
-- Jetons Spotify stockés côté serveur dans SQLite, jamais dans le cookie de session.
+---
+
+## En 30 secondes
+
+| Question | Réponse |
+|---|---|
+| **Quel problème ?** | Un chatbot seul peut inventer une date, une salle ou un prix. |
+| **Quelle solution ?** | Le LLM ne répond pas directement : il choisit des tools Python qui cherchent les concerts dans une vraie API. |
+| **Comment le vérifier ?** | 3 scénarios de démonstration, des traces pour chaque tool et 15 tests automatiques. |
+| **Pourquoi c'est sûr ?** | Aucune écriture en base sans confirmation explicite de l'utilisateur. |
+
+---
+
+## Ce que tu peux faire
+
+- Discuter en français pour chercher un concert.
+- Chercher sur tous tes artistes suivis, avec un plafond clair de 40 artistes et 30 résultats.
+- Filtrer par artiste, ville, région, date ou budget, y compris « cette année ».
+- Connecter Spotify et importer tes artistes les plus écoutés.
+- Ajouter un concert aux favoris après confirmation.
+- Cliquer sur un favori pour voir sa fiche complète : date, heure, salle, ville, région, pays, prix, source et lien de billetterie.
+- Consulter l'historique et les traces des tools.
+
+---
+
+## Les 3 démonstrations
+
+### 1. Chercher selon mes goûts
+
+> « Trouve un concert de mes artistes préférés en Auvergne-Rhône-Alpes le mois prochain. »
+
+L'agent consulte les préférences, interroge Ticketmaster, filtre les résultats et présente chaque concert avec sa date, son heure, son lieu, son prix et son lien de billetterie. Exemple de résultat réel : **Gims à la LDLC Arena de Décines**.
+
+### 2. Savoir dire « je n'ai rien trouvé »
+
+> « Je veux voir un concert à Paris demain, max 5 €. »
+
+L'agent cherche réellement. S'il ne trouve rien, il le dit et n'invente ni date, ni salle, ni prix.
+
+### 3. Demander avant d'enregistrer
+
+> « Ajoute le concert de Gims à Décines à mes favoris. »
+
+L'agent prépare l'action et affiche **« Confirmer ? »**. Le favori n'est écrit dans SQLite qu'après un clic sur **Oui**. Un clic sur **Non** annule l'action.
+
+---
+
+## Comment ça marche
+
+```text
+Toi
+ │  « Trouve un concert de Gims à Décines. »
+ ▼
+Interface web (Flask)
+ │
+ ▼
+Agent LLM ──► choisit le tool rechercher_concerts
+ │
+ ▼
+Python exécute le tool ──► Ticketmaster
+ │
+ ▼
+Résultat réel renvoyé au LLM
+ │
+ ▼
+Réponse claire dans le chat
+```
+
+1. **Tu écris une demande** en français.
+2. **Le LLM comprend l'intention** et choisit un tool : consulter les préférences, chercher des concerts, lister les favoris…
+3. **Python exécute le tool.** Le LLM ne fabrique pas les concerts : il reçoit les données du tool.
+4. **Le LLM rédige la réponse** à partir de ces données.
+5. **Pour une écriture**, le code Python met l'action en attente et demande confirmation.
+6. **Tout est tracé** : interaction, tool, arguments, résultat, statut et durée.
+
+### Les mots du projet
+
+| Mot | Définition simple |
+|---|---|
+| **LLM** | Modèle de langage qui comprend la demande et choisit quoi faire. Ici : Gemini. |
+| **Agent** | Programme qui enchaîne plusieurs actions pour atteindre un objectif. |
+| **Tool** | Fonction Python que l'agent peut appeler, par exemple `rechercher_concerts`. |
+| **SQLite** | Petite base de données locale qui garde les préférences, favoris et traces. |
+| **Trace** | Compte rendu d'un appel de tool : nom, arguments, résultat, durée. |
+| **Fallback** | Solution de secours : mode règles si le LLM est indisponible, données de démo si Ticketmaster ne renvoie rien. |
+| **OAuth** | Procédure officielle qui permet de connecter Spotify sans connaître ton mot de passe. |
+
+---
+
+## Pourquoi on peut lui faire confiance
+
+- **Les concerts viennent d'un tool**, pas de l'imagination du modèle.
+- **Les erreurs API sont visibles** : l'application distingue une panne, une absence de résultat et des données de démonstration.
+- **Les données de démo sont étiquetées** `source=demo` et affichées avec un avertissement.
+- **La confirmation est dans le code Python**, pas seulement dans une consigne donnée au LLM.
+- **Les traces permettent de vérifier** ce qui a réellement été appelé.
+- **Les secrets restent dans `.env`**, jamais dans Git ni dans le navigateur.
+
+---
 
 ## Démarrage rapide (Windows)
 
-1. Double-cliquer sur `run.bat`.
-2. Ouvrir **http://127.0.0.1:5000**.
+### Option 1 — Utiliser la démo en ligne
 
-Le script crée automatiquement `.venv`, installe `requirements.txt` et lance Flask.
+Ouvrir <https://concert-agent.onrender.com>. Aucune installation nécessaire.
+
+### Option 2 — Lancer en local
+
+1. Double-cliquer sur `run.bat`.
+2. Ouvrir <http://127.0.0.1:5000>.
+3. Pour arrêter le serveur : `Ctrl+C` dans la fenêtre noire.
+
+Le script crée `.venv`, installe `requirements.txt` et lance Flask.
 
 ### Démarrage manuel
 
@@ -30,6 +129,8 @@ py -3 -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements.txt
 .venv\Scripts\python.exe app.py
 ```
+
+---
 
 ## Configuration
 
@@ -43,7 +144,7 @@ LLM_PROVIDER=gemini
 LLM_MODEL=gemini-3.5-flash-lite
 ```
 
-Clé gratuite : https://aistudio.google.com/apikey
+Clé gratuite : <https://aistudio.google.com/apikey>
 
 Sans clé, l'application fonctionne en **mode règles** : même interface, mêmes tools, mêmes traces, mais les décisions sont prises par des règles Python au lieu du LLM.
 
@@ -55,7 +156,9 @@ DEMO_FALLBACK=1
 MODE_DEMO=0
 ```
 
-Avec une clé, l'API Discovery est interrogée avec `locale=fr-fr` et `countryCode=FR`. L'application cherche d'abord l'attraction exacte pour éviter les homonymes, puis récupère ses événements en France. Sans clé, ou si aucun événement ne correspond, elle utilise les concerts de démonstration et l'indique dans la réponse. `MODE_DEMO=1` force ce mode.
+Avec une clé, l'API Discovery est interrogée en français (`locale=fr-fr`, `countryCode=FR`). L'application cherche d'abord l'artiste exact pour éviter les homonymes, puis récupère ses événements en France.
+
+Sans clé, ou si aucun événement ne correspond, elle utilise les concerts de démonstration et l'indique dans la réponse. `MODE_DEMO=1` force ce mode.
 
 ### Spotify
 
@@ -65,31 +168,14 @@ SPOTIFY_CLIENT_SECRET=ton_client_secret
 REDIRECT_URI=http://127.0.0.1:5000/callback
 ```
 
-1. Ouvrir le dashboard Spotify : https://developer.spotify.com/dashboard
+1. Ouvrir <https://developer.spotify.com/dashboard>.
 2. Dans **Redirect URIs**, ajouter exactement `http://127.0.0.1:5000/callback`.
 3. Dans **User Management**, ajouter les comptes autorisés (5 maximum en mode développement).
 4. Redémarrer `run.bat`, puis cliquer sur **Se connecter avec Spotify**.
 
-Spotify n'accepte plus l'alias `localhost` depuis fin 2025 : il faut l'adresse loopback explicite `127.0.0.1`. L'application redirige automatiquement `localhost` vers `127.0.0.1` pour éviter les erreurs de session.
+Spotify n'accepte plus l'alias `localhost` : utiliser l'adresse loopback explicite `127.0.0.1`. L'import ajoute jusqu'à 30 artistes (top artistes + écoutes récentes), sans doublons.
 
-L'import ajoute jusqu'à 30 artistes (top artistes + écoutes récentes), sans doublons. Le bouton **Importer mes artistes** permet de relancer l'import.
-
-## Les 3 scénarios de démonstration
-
-1. **Recherche avec préférences**
-   > Trouve un concert de mes artistes préférés en Auvergne-Rhône-Alpes le mois prochain.
-
-   L'agent appelle `consulter_preferences` puis `rechercher_concerts`, et affiche les concerts trouvés par Ticketmaster. Chaque concert est présenté avec sa date, son heure, son lieu, son prix et le lien de billetterie. Sans clé ou sans résultat, il affiche 3 concerts de démonstration en le signalant.
-
-2. **Aucun résultat sans invention**
-   > Je veux voir un concert à Paris demain, max 5 €.
-
-   L'agent cherche réellement, ne trouve rien et répond qu'il ne peut pas inventer de concert.
-
-3. **Écriture avec confirmation**
-   > Ajoute le concert de Gims à Décines à mes favoris.
-
-   L'agent prépare l'action, demande « Confirmer ? », puis exécute `ajouter_favori` uniquement après « Oui ».
+---
 
 ## Tests
 
@@ -97,76 +183,104 @@ L'import ajoute jusqu'à 30 artistes (top artistes + écoutes récentes), sans d
 .venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-Les tests couvrent les 3 scénarios, la confirmation, le refus, l'historique, les préférences, les tools et l'intégration Spotify (sans appel réseau). Résultat attendu : `Ran 13 tests ... OK`.
+Les tests couvrent les 3 scénarios, la confirmation, le refus, l'historique, les préférences, les tools et l'intégration Spotify sans appel réseau.
 
-## Structure
+Résultat attendu : `Ran 15 tests ... OK`.
 
-```text
-concert-agent/
-  app.py                 serveur Flask et API
-  db.py                  SQLite, schéma, seed, historique
-  agent/
-    loop.py              boucle agent + confirmation
-    llm.py               point d'appel LLM unique
-    tools.py             tools et appels Ticketmaster
-    spotify.py           OAuth et import des artistes Spotify
-    regles.py            moteur de secours
-    villes.py            villes, régions, normalisation
-  templates/index.html   interface
-  static/style.css       thème
-  static/app.js          logique frontend
-  tests/test_agent.py    tests des scénarios et de Spotify
-  run.bat                lancement Windows
-  render.yaml            déploiement Render
-  Procfile               démarrage Gunicorn
-```
+---
+
+## Structure du projet
+
+| Fichier / dossier | Rôle |
+|---|---|
+| `app.py` | Serveur Flask et routes HTTP. |
+| `db.py` | Base SQLite, schéma, données de départ et historique. |
+| `agent/loop.py` | Boucle de l'agent et confirmation des écritures. |
+| `agent/llm.py` | Point d'appel unique du modèle de langage. |
+| `agent/tools.py` | Les 6 tools et les appels Ticketmaster. |
+| `agent/spotify.py` | Connexion OAuth et import des artistes Spotify. |
+| `agent/regles.py` | Mode de secours sans LLM. |
+| `agent/villes.py` | Villes, régions, accents et normalisation. |
+| `templates/index.html` | Interface web. |
+| `static/style.css` | Thème visuel. |
+| `static/app.js` | Logique du navigateur et fiche détaillée des favoris. |
+| `tests/test_agent.py` | Tests automatiques. |
+| `run.bat` | Lancement Windows. |
+| `render.yaml` | Déploiement Render. |
+| `Procfile` | Démarrage Gunicorn. |
+
+---
 
 ## Déploiement Render
 
-Le fichier `render.yaml` décrit un service Python gratuit avec Gunicorn. Le dossier à publier est `concert-agent-code`, pas le projet Node `concert-alert`.
+Le dossier à publier est **`concert-agent-code`**, pas l'ancien projet Node `concert-alert`.
 
-### 1. Mettre le code sur GitHub
+1. Créer un dépôt GitHub `concert-agent`.
+2. Envoyer **le contenu** de `concert-agent-code` à la racine du dépôt. Ne jamais envoyer `.env`, `data/` ni `.venv/`.
+3. Sur Render : **New > Blueprint**, connecter GitHub, sélectionner le dépôt, puis **Apply**.
+4. Renseigner `GEMINI_API_KEY`, `TICKETMASTER_API_KEY`, `SPOTIFY_CLIENT_ID` et `SPOTIFY_CLIENT_SECRET`.
+5. Après le déploiement, mettre `REDIRECT_URI=https://<ton-service>.onrender.com/callback` dans Render **et** dans Spotify Dashboard.
+6. Attendre le statut **Live**, puis ouvrir l'URL publique.
 
-1. Créer un compte sur <https://github.com> puis un dépôt nommé `concert-agent`.
-2. Ouvrir le dossier `concert-agent-code`, sélectionner **tout son contenu** et le déposer à la racine du dépôt GitHub via **Add file > Upload files**.
-3. Ne jamais envoyer `.env`, `data/` ni `.venv/` : ils contiennent les secrets et les données locales.
-4. Valider avec **Commit changes**.
+Le plan gratuit est éphémère et se met en veille : la base SQLite est réinitialisée et le premier chargement peut être lent. Pour conserver les données, utiliser un disque persistant payant ou une base Postgres.
 
-Le dépôt doit contenir `render.yaml`, `requirements.txt`, `app.py`, `agent/`, `static/` et `templates/` à sa racine.
-
-### 2. Créer le service sur Render
-
-1. Créer un compte sur <https://render.com> puis choisir **New > Blueprint**.
-2. Connecter GitHub et sélectionner le dépôt `concert-agent`.
-3. Render détecte `render.yaml` et propose un service gratuit. Valider avec **Apply**.
-4. Renseigner les variables demandées avec les valeurs de ton `.env` local :
-   - `GEMINI_API_KEY`
-   - `TICKETMASTER_API_KEY`
-   - `SPOTIFY_CLIENT_ID`
-   - `SPOTIFY_CLIENT_SECRET`
-   - `REDIRECT_URI` : laisser vide pour le premier déploiement.
-5. Ne pas modifier `FLASK_SECRET` : Render le génère automatiquement.
-6. Attendre la fin du déploiement et copier l'URL publique affichée, du type `https://concert-agent-xxxx.onrender.com`.
-
-### 3. Configurer Spotify et tester
-
-1. Dans Render > service > **Environment**, mettre `REDIRECT_URI` à `https://<ton-url>.onrender.com/callback`, puis enregistrer et attendre le redéploiement.
-2. Dans <https://developer.spotify.com/dashboard> > application > **Redirect URIs**, ajouter exactement la même URL, caractère pour caractère.
-3. Ouvrir l'URL Render : la recherche, les favoris et les liens de billetterie fonctionnent sans Spotify.
-4. Pour que ton ami utilise Spotify, ajouter son compte dans **User Management** du dashboard Spotify (mode développement limité à 5 comptes).
-
-### Limites du plan gratuit
-
-- Le service s'endort après inactivité : le premier chargement peut prendre environ une minute.
-- Le disque est éphémère : la base SQLite est recréée à chaque redéploiement ou redémarrage. Les favoris et l'historique ne sont pas permanents.
-- Pour conserver les données, ajouter un disque persistant payant et définir `CONCERT_DB_PATH` vers ce disque, ou migrer vers Postgres.
-- La base locale n'est pas publiée : le service démarre avec les données de démonstration. Un import Spotify est nécessaire pour retrouver tes artistes.
+---
 
 ## Limites connues
 
-- La couverture Ticketmaster en France est partielle : certains artistes n'ont aucun événement dans l'API. Dans ce cas, le fallback de démonstration est utilisé et signalé. La recherche réelle nécessite `locale=fr-fr` ; sans ce paramètre, l'API ne renvoie que quelques événements sportifs français.
-- Le LLM réel a été validé localement avec `gemini-3.5-flash-lite` ; sans clé, le mode règles reste le fallback. Ce modèle est préféré à `gemini-3.6-flash`, dont le quota gratuit de 20 requêtes/jour est trop vite épuisé.
+- La couverture de Ticketmaster en France est partielle : certains artistes n'ont aucun événement dans l'API.
+- Ticketmaster ne fournit pas toujours les prix : l'application affiche alors `Prix : non communiqué`.
 - Les concerts `source=demo` ne sont **pas** de vrais événements.
-- Spotify en mode développement limite l'application à 5 comptes ; il faut ajouter chaque compte dans le dashboard.
-- Le parcours OAuth réel a été validé localement après ajout de l'URI `http://127.0.0.1:5000/callback` dans Spotify ; les tests automatiques ne font aucun appel réseau.
-- Pour une mise en production, utiliser `render.yaml` ou un vrai serveur WSGI, un `FLASK_SECRET` robuste et un disque persistant pour SQLite.
+- Spotify en mode développement est limité à 5 comptes.
+- Le plan Render gratuit ne conserve pas les favoris après un redémarrage.
+- **Aucune notification automatique** n'est implémentée aujourd'hui. Les notifications, le partage de favoris et Bandsintown sont des perspectives, pas des fonctionnalités livrées.
+
+---
+
+## FAQ
+
+### Est-ce que les concerts se mettent à jour souvent ?
+
+Ticketmaster est interrogé **à chaque recherche**. Il n'y a pas de tâche de fond toutes les cinq minutes. Un favori est un instantané des informations au moment de l'ajout.
+
+### Pourquoi aucun concert n'apparaît pour mon artiste ?
+
+Ticketmaster ne couvre pas tous les artistes ni toutes les dates en France. L'application le signale et peut basculer sur des données de démonstration.
+
+### Pourquoi je ne vois pas tous mes artistes suivis ?
+
+Une recherche sans artiste précis interroge **tous les artistes suivis**, dans la limite de **40**. Les résultats sont ensuite plafonnés à **30 concerts** pour garder une réponse lisible. Si la liste ou le nombre de concerts dépasse ce plafond, l'agent l'indique dans sa réponse. Pour cibler un artiste absent de l'affichage, demande-le explicitement : « les concerts de Ninho cette année ».
+
+### Est-ce que « cette année » est compris ?
+
+Oui. La période correspond au **1er janvier – 31 décembre de l'année en cours**. Les concerts passés ne sont pas proposés par Ticketmaster ; la recherche porte donc sur les dates à venir de l'année.
+
+### Puis-je utiliser l'application sans Spotify ?
+
+Oui. Spotify sert seulement à importer automatiquement tes artistes. La recherche, les favoris et les liens de billetterie fonctionnent sans connexion Spotify.
+
+### Est-ce que le LLM peut inventer un concert ?
+
+Le prompt lui interdit, mais surtout les concerts viennent des tools. `ajouter_favori` vérifie aussi que le concert provient de la dernière recherche. En cas de panne du LLM, le mode règles prend le relais.
+
+### Où sont stockées mes données ?
+
+Dans SQLite, sur le serveur. En local : `data/concerts.db`. En ligne : la base Render, effacée à chaque redémarrage sur le plan gratuit.
+
+---
+
+## Pour le jury : où regarder
+
+| Exigence | Preuve dans le projet |
+|---|---|
+| Application Python / Flask | `app.py`, `render.yaml`, `requirements.txt` |
+| Interface Flask | `templates/index.html`, `static/` |
+| LLM distant | `agent/llm.py`, badge LLM, `/api/etat` |
+| LLM qui choisit les tools | `agent/loop.py`, panneau « Traces » |
+| SQLite lue et écrite | `db.py`, tools `ajouter_favori` et `ajouter_artiste_suivi` |
+| Confirmation avant écriture | `pending_actions`, boutons Oui/Non, tests |
+| Historique et traces | tables `interactions` et `tool_traces`, `/api/historique` |
+| 3 scénarios | `DEMOS.md` / `DEMOS.pdf` et `tests/test_agent.py` |
+| 4 livrables | `README`, `DOCUMENTATION`, `DEMOS`, `PRESENTATION` + PDFs |
+
+Les livrables sont disponibles en Markdown et en PDF dans le dossier `pdf/`.

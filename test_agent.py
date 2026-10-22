@@ -9,6 +9,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
@@ -27,7 +28,7 @@ os.environ["REDIRECT_URI"] = ""
 
 import app as app_module  # noqa: E402
 import db  # noqa: E402
-from agent.tools import TOOLS  # noqa: E402
+from agent.tools import TOOLS, _resolve_range, rechercher_concerts  # noqa: E402
 
 
 def tearDownModule():
@@ -255,6 +256,32 @@ class AgentApiTest(unittest.TestCase):
 
         self.client.get("/logout")
         self.assertIsNone(db.get_spotify_session(session_id))
+
+    def test_periode_cette_annee(self):
+        start, end = _resolve_range("cette année")
+        self.assertEqual(start, date(date.today().year, 1, 1))
+        self.assertEqual(end, date(date.today().year, 12, 31))
+
+    def test_recherche_large_interroge_tous_les_artistes(self):
+        artistes = db.list_artistes()
+        env = {
+            "TICKETMASTER_API_KEY": "test",
+            "MODE_DEMO": "0",
+            "DEMO_FALLBACK": "0",
+        }
+        with patch.dict(os.environ, env, clear=False), \
+                patch("agent.tools._tm_search", return_value=[]) as search, \
+                patch("agent.tools.time.sleep"):
+            result = rechercher_concerts("session-large", periode="cette_annee")
+
+        self.assertEqual(search.call_count, len(artistes))
+        self.assertTrue(
+            all(call.kwargs.get("exact") is False for call in search.call_args_list)
+        )
+        self.assertEqual(result["statut"], "vide")
+        self.assertEqual(result["recherche"]["artistes_interroges"], len(artistes))
+        self.assertTrue(result["recherche"]["elargie"])
+        self.assertIn("Recherche élargie", result["note"])
 
     def test_artistes_et_favoris_api(self):
         response = self.client.post("/api/artistes", json={"artiste": "Booba"})

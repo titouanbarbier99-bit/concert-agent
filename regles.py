@@ -97,6 +97,8 @@ def _extract_budget(text):
 def _extract_periode(text):
     if "mois prochain" in text:
         return "mois_prochain"
+    if "cette annee" in text or "annee en cours" in text:
+        return "cette_annee"
     if "demain" in text:
         return "demain"
     if "week end" in text or "weekend" in text:

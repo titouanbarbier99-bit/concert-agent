@@ -19,6 +19,10 @@ TM_URL = "https://app.ticketmaster.com/discovery/v2/events.json"
 TM_ATTRACTIONS_URL = "https://app.ticketmaster.com/discovery/v2/attractions.json"
 _TM_ATTRACTION_CACHE = {}
 
+MAX_BROAD_ARTISTS = 40
+MAX_BROAD_SECONDS = 30
+BROAD_SEARCH_DELAY = 0.25
+
 
 class ToolError(Exception):
     pass
@@ -60,6 +64,11 @@ def _weekend_range():
     return saturday, sunday
 
 
+def _year_range():
+    today = date.today()
+    return date(today.year, 1, 1), date(today.year, 12, 31)
+
+
 def _resolve_range(periode, date_debut=None, date_fin=None):
     key = villes.norm(periode)
     if key in ("mois prochain", "le mois prochain", "next month"):
@@ -73,6 +82,8 @@ def _resolve_range(periode, date_debut=None, date_fin=None):
         today = date.today()
         days_until_sunday = (6 - today.weekday()) % 7
         return today, today + timedelta(days=days_until_sunday)
+    if key in ("cette annee", "annee", "annee en cours", "cette annee civile"):
+        return _year_range()
     return _parse_date(date_debut), _parse_date(date_fin)
 
 
@@ -188,20 +199,26 @@ def _tm_attraction_id(artist):
 
 def _tm_event_matches(event, artist):
     needle = villes.norm(artist)
+    if not needle:
+        return False
     names = [event.get("name") or ""]
     names.extend(
         attraction.get("name") or ""
         for attraction in ((event.get("_embedded") or {}).get("attractions") or [])
     )
-    return any(needle in villes.norm(name) for name in names)
+    for name in names:
+        haystack = " " + villes.norm(name) + " "
+        if f" {needle} " in haystack:
+            return True
+    return False
 
 
-def _tm_search(artist, start=None, end=None):
+def _tm_search(artist, start=None, end=None, timeout=12, exact=True):
     key = _tm_key()
     if not key:
         raise ToolError("cle Ticketmaster absente")
 
-    attraction_id = _tm_attraction_id(artist)
+    attraction_id = _tm_attraction_id(artist) if exact else None
     params = {
         "apikey": key,
         "locale": "fr-fr",
@@ -219,7 +236,7 @@ def _tm_search(artist, start=None, end=None):
         params["endDateTime"] = end.isoformat() + "T23:59:59Z"
 
     try:
-        response = requests.get(TM_URL, params=params, timeout=12)
+        response = requests.get(TM_URL, params=params, timeout=timeout)
     except requests.RequestException as exc:
         raise ToolError("Ticketmaster injoignable") from exc
 
@@ -383,7 +400,7 @@ def consulter_preferences(session_id):
 
 def rechercher_concerts(session_id, artiste=None, ville=None, region=None,
                         date_debut=None, date_fin=None, periode=None,
-                        budget_max=None, limite=10):
+                        budget_max=None, limite=30):
     artiste = (artiste or "").strip() or None
     ville = (ville or "").strip() or None
     region_code = villes.region_code(region) if region else None
@@ -413,20 +430,54 @@ def rechercher_concerts(session_id, artiste=None, ville=None, region=None,
             "message": "Aucun artiste suivi. Ajoute d'abord un artiste.",
         }
 
+    broad = not artiste
+    total_artistes = len(artistes)
+    broad_limitee = broad and total_artistes > MAX_BROAD_ARTISTS
+    if broad_limitee:
+        artistes = artistes[:MAX_BROAD_ARTISTS]
+
     notes = []
     source = "demo"
+    interroges = len(artistes)
     mode_demo = os.getenv("MODE_DEMO", "0").lower() in ("1", "true", "oui", "yes")
     demo_fallback = os.getenv("DEMO_FALLBACK", "1").lower() not in ("0", "false", "non", "no")
     key = _tm_key()
 
     if key and not mode_demo:
+        if broad_limitee:
+            notes.append(
+                f"Recherche limitée aux {MAX_BROAD_ARTISTS} premiers artistes "
+                f"sur {total_artistes}."
+            )
+        elif broad and total_artistes > 8:
+            notes.append(f"Recherche élargie à {total_artistes} artistes suivis.")
+
         errors = []
         raw = []
-        for current in artistes[:8]:
+        interroges = 0
+        deadline = time.monotonic() + MAX_BROAD_SECONDS if broad else None
+        for current in artistes:
+            if deadline and time.monotonic() >= deadline:
+                notes.append(
+                    f"Recherche interrompue après {interroges} artistes "
+                    f"sur {len(artistes)} (délai)."
+                )
+                break
+            interroges += 1
             try:
-                raw.extend(_tm_search(current, start, end))
+                raw.extend(
+                    _tm_search(
+                        current,
+                        start,
+                        end,
+                        timeout=8 if broad else 12,
+                        exact=not broad,
+                    )
+                )
             except ToolError as exc:
-                errors.append(str(exc))
+                errors.append(f"{current}: {exc}")
+            if broad:
+                time.sleep(BROAD_SEARCH_DELAY)
 
         if errors and not raw:
             if not demo_fallback:
@@ -443,7 +494,10 @@ def rechercher_concerts(session_id, artiste=None, ville=None, region=None,
         else:
             source = "ticketmaster"
             if errors:
-                notes.append("Certaines requêtes Ticketmaster ont échoué (" + errors[0] + ").")
+                notes.append(
+                    f"{len(errors)} artiste(s) n'ont pas pu être vérifiés "
+                    "(erreur Ticketmaster)."
+                )
             if not raw and demo_fallback:
                 source = "demo"
                 notes.append("Aucun événement Ticketmaster : données de démonstration.")
@@ -456,7 +510,7 @@ def rechercher_concerts(session_id, artiste=None, ville=None, region=None,
             notes.append("Clé Ticketmaster absente : données de démonstration.")
         raw = _demo_search(artistes, start, end)
 
-    concerts = _apply_filters(
+    filtered = _apply_filters(
         raw,
         artiste=artiste,
         ville=ville,
@@ -464,7 +518,9 @@ def rechercher_concerts(session_id, artiste=None, ville=None, region=None,
         budget_max=budget,
         start=start,
         end=end,
-    )[:limite]
+    )
+    total_matches = len(filtered)
+    concerts = filtered[:limite]
 
     db.cache_results(session_id, concerts)
 
@@ -472,6 +528,11 @@ def rechercher_concerts(session_id, artiste=None, ville=None, region=None,
         message = f"{len(concerts)} concert(s) trouve(s)."
     else:
         message = "Aucun concert ne correspond aux critères demandés."
+
+    if total_matches > limite:
+        notes.append(
+            f"Affichage limité aux {limite} premiers concerts sur {total_matches}."
+        )
 
     if source == "demo":
         notes.append("Ces résultats sont des données de démonstration, pas des événements réels.")
@@ -491,9 +552,17 @@ def rechercher_concerts(session_id, artiste=None, ville=None, region=None,
             "periode": periode or "",
             "budget_max": budget,
         },
+        "recherche": {
+            "artistes_total": total_artistes,
+            "artistes_interroges": interroges,
+            "elargie": broad,
+            "limite_resultats": limite,
+            "resultats_avant_limite": total_matches,
+        },
         "concerts": concerts,
         "affichage": format_concerts_affichage(concerts, source),
         "note": " ".join(notes).strip(),
+        "avertissement": " ".join(notes).strip(),
         "message": message,
     }
 
@@ -661,9 +730,9 @@ TOOLS = [
     Tool(
         "rechercher_concerts",
         "Recherche des concerts reels via Ticketmaster (ou des donnees de demonstration "
-        "clairement signalees si l'API est indisponible). Utilise les artistes suivis si "
-        "aucun artiste n'est precise. Retourne dates, salles, villes, prix et liens. "
-        "A appeler pour toute demande de concerts.",
+        "clairement signalees si l'API est indisponible). Utilise tous les artistes suivis "
+        "(jusqu'a 40) si aucun artiste n'est precise. Retourne dates, salles, villes, prix "
+        "et liens. A appeler pour toute demande de concerts.",
         {
             "type": "object",
             "properties": {
@@ -674,11 +743,17 @@ TOOLS = [
                 "date_fin": {"type": "string", "description": "Date ISO de fin (AAAA-MM-JJ), facultatif."},
                 "periode": {
                     "type": "string",
-                    "enum": ["mois_prochain", "demain", "ce_weekend", "cette_semaine"],
+                    "enum": [
+                        "mois_prochain",
+                        "cette_annee",
+                        "demain",
+                        "ce_weekend",
+                        "cette_semaine",
+                    ],
                     "description": "Periode relative, facultatif.",
                 },
                 "budget_max": {"type": "number", "description": "Prix maximum en euros, facultatif."},
-                "limite": {"type": "integer", "description": "Nombre maximum de concerts (defaut 10)."},
+                "limite": {"type": "integer", "description": "Nombre maximum de concerts (defaut 30, maximum 30)."},
             },
             "required": [],
         },

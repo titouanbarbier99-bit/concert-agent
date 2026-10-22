@@ -3,46 +3,46 @@
 ## Slide 1 — Titre
 
 **Concert Agent**
-Trouver des concerts avec un agent LLM qui utilise de vrais tools.
+Trouver de vrais concerts avec un agent LLM qui utilise des tools.
 
 - Projet Python / Flask
 - SQLite
 - Agent LLM avec confirmation
-- Connexion Spotify et import des artistes
-- Démo en 3 scénarios
+- Connexion Spotify
+- Démonstration en 3 scénarios
 
-> Notes : présenter le projet en une phrase : « un assistant qui ne se contente pas de répondre, il agit : il cherche, filtre, propose et enregistre — avec validation humaine. »
+> Notes : phrase d'ouverture : « un assistant qui ne se contente pas de répondre : il cherche, filtre, propose et enregistre — avec validation humaine. »
 
 ---
 
 ## Slide 2 — Le problème
 
-Un chatbot classique peut inventer une date, une salle ou un prix.
+Un chatbot seul peut inventer une date, une salle ou un prix.
 
-Or, pour un concert, une information inventée est inutilisable :
+Pour un concert, une information inventée est inutilisable :
 
 - mauvaise date ;
 - mauvaise ville ;
 - prix faux ;
 - aucune trace de ce qui a été fait.
 
-Objectif : un agent **fiable, traçable et contrôlable**.
+**Objectif :** un agent fiable, traçable et contrôlable.
 
-> Notes : insister sur la différence entre « répondre » et « agir avec des données réelles ».
+> Notes : exemple simple : « Je veux voir Gims demain à Paris » ne doit pas produire une fausse date.
 
 ---
 
 ## Slide 3 — La solution
 
-Cinq piliers :
+Un agent, ce n'est pas seulement un modèle qui parle : c'est un modèle qui peut **choisir des actions**.
 
 1. **Agent LLM** : comprend la demande en français.
 2. **Tools Python** : cherchent réellement les concerts.
-3. **SQLite** : stocke préférences, favoris, historique et traces.
+3. **SQLite** : garde les préférences, favoris, historique et traces.
 4. **Confirmation** : aucune écriture sans accord explicite.
-5. **Spotify** : importe les artistes réellement écoutés par l'utilisateur.
+5. **Spotify** : importe les artistes réellement écoutés.
 
-> Notes : l'agent ne fait pas tout lui-même ; il choisit un tool, Python l'exécute, puis le résultat revient au modèle.
+> Notes : analogie : le LLM est le cerveau, les tools sont les mains, SQLite est la mémoire, la confirmation est le garde-fou.
 
 ---
 
@@ -56,16 +56,17 @@ Cinq piliers :
 
 - `consulter_preferences` ;
 - `rechercher_concerts` avec la région et la période ;
-- réponse avec les concerts trouvés par Ticketmaster.
+- recherche large sur tous les artistes suivis, jusqu'à 40 ;
+- réponse construite à partir des résultats Ticketmaster.
 
-**Résultat**
+**Résultat observé**
 
-- Djadja & Dinaz — Halle Tony Garnier, Lyon ;
-- Gims — LDLC Arena, Décines.
+- Gims — LDLC Arena, Décines ;
+- 02/11/2026 et 03/11/2026.
 
 Chaque concert affiche : date, heure, lieu, prix et lien de billetterie.
 
-> Notes : montrer les traces dans l'interface. Les données viennent de Ticketmaster ; si aucun événement n'est trouvé, la démo est signalée.
+> Notes : montrer les traces. Si Ticketmaster ne trouve rien, la démo est signalée et les données ne sont pas présentées comme réelles.
 
 ---
 
@@ -93,17 +94,19 @@ L'absence de résultat est une **vraie réponse**, pas un échec.
 
 **Demande**
 
-> Ajoute le concert de Gims à Décines à mes favoris.
+> Ajoute le concert de Gims du 2 novembre 2026 à Décines à mes favoris.
 
 **Séquence**
 
 1. L'agent prépare l'action.
-2. Il demande : « Je vais ajouter Gims — ... à Décines (LDLC Arena). Confirmer ? »
-3. L'utilisateur clique sur « Oui ».
+2. Il demande : « Je vais ajouter Gims — 02/11/2026 à Décines (LDLC Arena). Confirmer ? »
+3. L'utilisateur clique sur **Oui**.
 4. Le tool `ajouter_favori` écrit dans SQLite.
 5. Le favori apparaît dans la barre latérale.
 
-> Notes : montrer aussi le bouton « Non » et vérifier qu'aucun favori n'est ajouté.
+**Variante :** cliquer sur **Non** et vérifier qu'aucun favori n'est ajouté.
+
+> Notes : insist : la confirmation est imposée par le code Python, pas seulement par le prompt.
 
 ---
 
@@ -128,13 +131,13 @@ agent/loop.py ──► agent/llm.py
 - Une seule porte d'entrée pour les tools.
 - Une seule base pour les données et les traces.
 
-> Notes : expliquer que cette séparation rend le projet testable et remplaçable (Gemini, OpenAI, Ollama).
+> Notes : cette séparation rend le projet testable et remplaçable (Gemini, OpenAI, Ollama).
 
 ---
 
 ## Slide 8 — Les tools
 
-| Tool | Lecture / écriture |
+| Tool | Type |
 |---|---|
 | `consulter_preferences` | lecture |
 | `rechercher_concerts` | lecture |
@@ -142,6 +145,8 @@ agent/loop.py ──► agent/llm.py
 | `historique_agent` | lecture |
 | `ajouter_favori` | écriture |
 | `ajouter_artiste_suivi` | écriture |
+
+**4 tools de lecture, 2 tools d'écriture.**
 
 Chaque tool a une description en français : c'est le mode d'emploi du LLM.
 
@@ -151,22 +156,19 @@ Chaque tool a une description en français : c'est le mode d'emploi du LLM.
 
 ## Slide 9 — SQLite et traçabilité
 
-Tables principales :
+SQLite garde :
 
-- `preferences` ;
-- `artistes_suivis` ;
-- `favoris` ;
-- `interactions` ;
-- `tool_traces` ;
-- `pending_actions` ;
-- `resultats_cache` ;
-- `spotify_sessions`.
+- les préférences et les artistes suivis ;
+- les favoris ;
+- les interactions ;
+- les traces des tools ;
+- les actions en attente de confirmation.
 
-Chaque appel de tool laisse une trace : nom, arguments, résultat, statut, durée.
+Chaque appel de tool laisse une trace : nom, arguments, statut, durée.
 
-Chaque favori est cliquable : sa fiche réunit date, heure, salle, ville, prix, source et lien de billetterie.
+Chaque favori est cliquable : sa fiche réunit date, heure, salle, ville, région, prix, source et lien de billetterie.
 
-> Notes : montrer `/api/historique` ou le panneau « Traces » dans le chat, puis ouvrir la fiche d'un favori.
+> Notes : montrer le panneau « Traces » dans le chat, puis ouvrir la fiche d'un favori.
 
 ---
 
@@ -174,12 +176,12 @@ Chaque favori est cliquable : sa fiche réunit date, heure, salle, ville, prix, 
 
 - Les tools d'écriture sont marqués `is_write=True`.
 - L'action est stockée dans `pending_actions`.
-- La réponse « Oui » exécute ; « Non » annule.
+- « Oui » exécute ; « Non » annule.
 - `ajouter_favori` vérifie que le concert vient de la dernière recherche.
 - Les secrets sont dans `.env`, hors Git.
 - Les jetons Spotify sont en base, pas dans le cookie ; le `state` OAuth est vérifié.
 
-> Notes : la confirmation est une barrière technique, pas seulement une phrase dans le prompt.
+> Notes : la confirmation est une barrière technique, pas une phrase dans le prompt.
 
 ---
 
@@ -192,30 +194,31 @@ Chaque favori est cliquable : sa fiche réunit date, heure, salle, ville, prix, 
 Résultat :
 
 ```text
-Ran 13 tests ... OK
+Ran 15 tests ... OK
 ```
 
-Les tests couvrent les 3 scénarios, la confirmation, le refus, l'historique, les préférences, les tools et l'intégration Spotify sans appel réseau.
+Les tests couvrent les 3 scénarios, la confirmation, le refus, l'historique, les préférences, les tools et Spotify sans appel réseau.
 
-> Notes : les tests utilisent une base temporaire et ne dépendent pas du réseau.
+> Notes : les tests utilisent une base temporaire. Ils ne remplacent pas un essai réel de Ticketmaster et Spotify.
 
 ---
 
 ## Slide 12 — Limites et perspectives
 
-Aujourd'hui :
+**Ce qui est livré**
 
-- concerts réels via Ticketmaster (`locale=fr-fr`) ; couverture France partielle ;
-- LLM réel validé avec `gemini-3.5-flash-lite` ; mode règles en secours ;
-- connexion Spotify réelle validée localement (profil + import) ;
-- Spotify limité à 5 comptes en mode développement ;
-- données de démo clairement signalées.
+- concerts réels via Ticketmaster (`locale=fr-fr`) ;
+- recherche large plafonnée (40 artistes, 30 résultats) ;
+- LLM réel validé avec `gemini-3.5-flash-lite` ;
+- mode règles en secours ;
+- Spotify réel, limité à 5 comptes en développement ;
+- données de démonstration clairement signalées.
 
-Demain :
+**Ce qui reste à faire**
 
-- élargir la couverture concerts (Bandsintown / OpenAgenda) ;
-- déploiement Render avec disque persistant ;
-- notifications et partage de favoris.
+- élargir la couverture concerts ;
+- notifications et partage de favoris ;
+- disque persistant pour Render.
 
 > Notes : annoncer honnêtement ce qui est démontré et ce qui reste à brancher.
 

@@ -27,9 +27,16 @@
   const spotifyName = document.getElementById("spotify-name");
   const spotifyImport = document.getElementById("spotify-import");
   const spotifyHint = document.getElementById("spotify-hint");
+  const favModal = document.getElementById("fav-modal");
+  const favModalTitle = document.getElementById("fav-modal-title");
+  const favModalSubtitle = document.getElementById("fav-modal-subtitle");
+  const favModalClose = document.getElementById("fav-modal-close");
+  const favModalLink = document.getElementById("fav-modal-link");
+  const favModalRemove = document.getElementById("fav-modal-remove");
 
   let busy = false;
   let llmConfigured = false;
+  let currentFavori = null;
 
   async function api(path, options = {}) {
     const response = await fetch(path, {
@@ -347,6 +354,89 @@
     });
   }
 
+  function formatAdded(iso) {
+    if (!iso) return "";
+    const parsed = new Date(iso);
+    if (Number.isNaN(parsed.getTime())) return iso;
+    return parsed.toLocaleString("fr-FR", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  function formatPrice(fav) {
+    if (fav.prix_min === null || fav.prix_min === undefined) return "Non communiqué";
+    const min = Number(fav.prix_min);
+    if (!Number.isFinite(min)) return "Non communiqué";
+    const hasMax = fav.prix_max !== null && fav.prix_max !== undefined && fav.prix_max !== "";
+    const max = hasMax ? Number(fav.prix_max) : min;
+    if (!Number.isFinite(max)) return `${min} ${fav.devise === "EUR" || !fav.devise ? "€" : fav.devise}`;
+    const currency = fav.devise === "EUR" || !fav.devise ? "€" : fav.devise;
+    return max !== min
+      ? `${min} – ${max} ${currency}`
+      : `${min} ${currency}`;
+  }
+
+  function formatSource(source) {
+    if (source === "ticketmaster") return "Ticketmaster (données réelles)";
+    if (source === "demo") return "Données de démonstration";
+    return source || "Non renseignée";
+  }
+
+  function setFavRow(name, value) {
+    const row = favModal.querySelector(`[data-fav-row="${name}"]`);
+    if (!row) return;
+    const text = value === null || value === undefined ? "" : String(value).trim();
+    row.classList.toggle("hidden", !text);
+    row.querySelector("dd").textContent = text;
+  }
+
+  function openFavori(fav) {
+    currentFavori = fav;
+    const date = fav.date ? formatDate(fav.date) : "";
+    favModalTitle.textContent = fav.artiste || "Concert";
+    favModalSubtitle.textContent = [date, fav.heure].filter(Boolean).join(" · ");
+
+    setFavRow("date", date);
+    setFavRow("heure", fav.heure);
+    setFavRow("salle", fav.salle);
+    setFavRow("ville", fav.ville);
+    setFavRow("region", fav.region);
+    setFavRow("pays", fav.pays);
+    setFavRow("prix", formatPrice(fav));
+    setFavRow("source", formatSource(fav.source));
+    setFavRow("ajoute", formatAdded(fav.ajoute_le));
+
+    const url = String(fav.url || "").trim();
+    if (/^https?:\/\//i.test(url)) {
+      favModalLink.href = url;
+      favModalLink.classList.remove("hidden");
+    } else {
+      favModalLink.removeAttribute("href");
+      favModalLink.classList.add("hidden");
+    }
+
+    favModal.classList.remove("hidden");
+    document.body.classList.add("modal-open");
+    favModalClose.focus();
+  }
+
+  function closeFavModal() {
+    favModal.classList.add("hidden");
+    document.body.classList.remove("modal-open");
+    currentFavori = null;
+  }
+
+  async function removeCurrentFavori() {
+    const favori = currentFavori;
+    if (!favori) return;
+    closeFavModal();
+    await removeFavori(favori.id);
+  }
+
   function renderSidebar(data) {
     const prefs = data.preferences || {};
     if (document.activeElement !== prefVille) prefVille.value = prefs.ville || "";
@@ -392,6 +482,9 @@
       favoris.forEach((fav) => {
         const item = document.createElement("div");
         item.className = "fav-item";
+        item.tabIndex = 0;
+        item.setAttribute("role", "button");
+        item.title = "Voir tous les détails";
 
         const title = document.createElement("b");
         title.textContent = `${fav.artiste} — ${formatDate(fav.date)}`;
@@ -403,21 +496,35 @@
 
         if (fav.prix_min !== null && fav.prix_min !== undefined) {
           const price = document.createElement("span");
-          const value = fav.prix_min === fav.prix_max
-            ? `${fav.prix_min} €`
-            : `${fav.prix_min} – ${fav.prix_max} €`;
-          price.textContent = " · " + value;
+          price.textContent = " · " + formatPrice(fav);
           item.appendChild(price);
         }
+
+        const more = document.createElement("span");
+        more.className = "fav-more";
+        more.textContent = "Voir tous les détails ›";
+        item.appendChild(more);
 
         const actions = document.createElement("div");
         actions.className = "fav-actions";
         const remove = document.createElement("button");
         remove.type = "button";
         remove.textContent = "retirer";
-        remove.addEventListener("click", () => removeFavori(fav.id));
+        remove.addEventListener("click", (event) => {
+          event.stopPropagation();
+          removeFavori(fav.id);
+        });
         actions.appendChild(remove);
         item.appendChild(actions);
+
+        item.addEventListener("click", () => openFavori(fav));
+        item.addEventListener("keydown", (event) => {
+          if (event.target !== item) return;
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            openFavori(fav);
+          }
+        });
 
         favsList.appendChild(item);
       });
@@ -590,6 +697,17 @@
 
   document.getElementById("clear-chat").addEventListener("click", () => {
     window.location.reload();
+  });
+
+  favModalClose.addEventListener("click", closeFavModal);
+  favModalRemove.addEventListener("click", removeCurrentFavori);
+  favModal.addEventListener("click", (event) => {
+    if (event.target.hasAttribute("data-close-fav")) closeFavModal();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !favModal.classList.contains("hidden")) {
+      closeFavModal();
+    }
   });
 
   handleSpotifyQuery();
